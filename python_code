@@ -63,7 +63,7 @@ def weather_extractor():
         print(f'File saved at: {path}')
         print('Data Saved.')
 
-    api  = 'c0911180ed18afbd70007d71a69dd34a'
+    api  = 'key'
     city = 'lahore'
 
     raw_data    = dataextractor(api, city)
