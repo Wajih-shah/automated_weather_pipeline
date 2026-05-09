@@ -1,1 +1,73 @@
+import pendulum
+import pandas as pd
+import requests
+from airflow.sdk import dag, task
 
+@dag(
+    dag_id="weather_extractor",
+    schedule="@daily",
+    start_date=pendulum.datetime(2026, 1, 1, tz='UTC'),
+    catchup=False,
+    tags=["weather", "example"]
+)
+def weather_extractor():
+
+    @task()
+    def dataextractor(api: str, city: str) -> dict:
+        url = (
+            f'https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api}&units=metric'
+        )
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+
+        if data.get('cod') == 200:
+            print('Data Extracted Successfully')
+        else:
+            raise ValueError("API error")
+
+        return data
+
+    @task()
+    def transform_data(raw: dict) -> list:
+        cleaned = {
+            'id':                [raw['id']],
+            'city':              [raw['name']],
+            'country':           [raw['sys']['country']],
+            'time':              [str(pd.to_datetime(raw['dt'], unit='s'))],
+            'weather_condition': [raw['weather'][0]['description']],
+            'temperature':       [raw['main']['temp']],
+            'feel_temp':         [raw['main']['feels_like']],
+            'air_pressure':      [raw['main']['pressure']],
+            'humidity':          [raw['main']['humidity']],
+            'wind_speed_ms':     [raw['wind']['speed']],
+        }
+        df = pd.DataFrame(cleaned)
+        print(df.head())
+        return df.to_dict(orient='records')
+
+    @task()
+
+
+    def load_to_csv(records: list) -> None:
+        import os
+        df = pd.DataFrame(records)
+
+        path = '/opt/airflow/data/weather_data.csv'
+
+        os.makedirs('/opt/airflow/data', exist_ok=True)
+    
+        file_exists = os.path.isfile(path)
+        df.to_csv(path, mode='a', header=not file_exists, index=False)
+
+        print(f'File saved at: {path}')
+        print('Data Saved.')
+
+    api  = 'c0911180ed18afbd70007d71a69dd34a'
+    city = 'lahore'
+
+    raw_data    = dataextractor(api, city)
+    transformed = transform_data(raw_data)
+    load_to_csv(transformed)
+
+weather_extractor()
